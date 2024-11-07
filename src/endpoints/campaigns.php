@@ -11,37 +11,67 @@ $dotenv->load();
 
 use MauticWrapper\MauticAPI;
 
+/********************************************************
+ * Check the end of file to get idea of how this function (addCampaign) works
+ * 
+ * 
+ * 
+ *********************************************************/
+
+function getEventId($mautic){
+    $response = $mautic->getLatestCampaign();
+    print_r($response );
 
 
-function addCampaign($isPublished ,$oldCampaignId,$CampaignTypeName, $categoryName, $listOfEvents){
+    // Check if 'events' exists in the response and is an array
+    if (isset($response['events']) && is_array($response['events']) && count($response['events']) > 0) {
+        // Get the ID of the last event
+        $lastEventId = $response['events'][count($response['events']) - 1]['id'];
+    
+        echo '<br><b>Last Event ID: ' . $lastEventId . '</b><br>';
+    } else {
+        throw new Exception("No events found in the campaign response.");
+    }
+    return $lastEventId ;
+}
+
+function addCampaign($isPublished ,$numOfEvents,$CampaignTypeName, $categoryName, $listOfEvents){
 
     $apiUrl = $_ENV['API_URL'];
     $username = $_ENV['USERNAME'];
     $password = $_ENV['PASSWORD'];
 
+    $apiData=[
+        'apiUrl'=>$apiUrl,
+        'username'=>$username,
+        'password'=> $password
+    ];
+  
     // Initialize Mautic API
     $mautic = new MauticAPI($apiUrl, $username, $password);
-
-
+    $EventId=getEventId($mautic);
+   
+    switch($numOfEvents){
+        case 1:
+            $oldCampaignId=273;
+            break;
+        case 2:
+            $oldCampaignId=136;
+            break;
+        case 3:
+            $oldCampaignId=137;
+            break;
+        default:
+        throw new Exception("No template found in the campaign response.");
+    }
     // Change this into clone a campaign id
     $responseData = $mautic->cloneCampaign($oldCampaignId);
 
     $campaignId=$responseData ['campaign']['id'];
-    $eventName='Sending email through API';
     $CampaignType=$responseData['campaign']['canvasSettings']['connections'][0]['sourceId'];
-
-    echo "<pre>";
-    print_r($responseData);
-    echo "</pre>";
-
-    $event=addEvent($campaignId, $CampaignTypeName, $CampaignType, $categoryName, $listOfEvents);
+   
+    $event=addEvent($apiData,$EventId, $CampaignTypeName, $CampaignType, $categoryName, $listOfEvents);
     echo $CampaignType;
-
-    echo "<pre>";
-    print_r($event);
-    echo "</pre>";
-
-    print_r($event['events']);
 
     $responseData['campaign']['isPublished']=$isPublished;
     $responseData['campaign']['name']=$CampaignTypeName;
@@ -61,9 +91,7 @@ function addCampaign($isPublished ,$oldCampaignId,$CampaignTypeName, $categoryNa
         }
     }
 
-    echo '<pre>';
-    print_r (json_encode($responseData));
-    echo '</pre>';
+
 
     $finalCampaignData = ['name'=>$responseData['campaign']['name'], 'isPublished'=> $responseData['campaign']['isPublished'],'category'=>$responseData['campaign']['category'],'events'=> $responseData['campaign']['events'],'forms'=>$responseData['campaign']['forms'],'lists'=> $responseData['campaign']['lists'], 'canvasSettings'=>$responseData['campaign']['canvasSettings']];
 
@@ -71,6 +99,7 @@ function addCampaign($isPublished ,$oldCampaignId,$CampaignTypeName, $categoryNa
     print_r (json_encode($finalCampaignData));
     echo '</pre>';
 
+    //$response=$mautic->createCampaign($finalCampaignData);
     $response=$mautic->updateCampaign($campaignId, $finalCampaignData);
     print_r($response);
 
@@ -81,42 +110,111 @@ function addCampaign($isPublished ,$oldCampaignId,$CampaignTypeName, $categoryNa
 }
 
 
-// This function is changing the date to make it compatible with the data to be added
-function formatTriggerDate($dateTime) {
-    // Ensure the input is an array and contains required keys
-    if (!is_array($dateTime) || 
-        !isset($dateTime['date']) || 
-        !isset($dateTime['month']) || 
-        !isset($dateTime['year']) || 
-        !isset($dateTime['time'])) {
-        throw new InvalidArgumentException("Invalid dateTime array provided.");
+// This function is changing the date to make it compatible with the data to be added 
+class TriggerDateFormatter
+{
+    public static function formatTriggerDate(array $dateTime)
+    {
+        // Validate and check each required field in the array
+        $requiredFields = ['year', 'month', 'date', 'hour', 'minute'];
+        foreach ($requiredFields as $field) {
+            if (!isset($dateTime[$field])) {
+                throw new InvalidArgumentException("Missing required field: $field.");
+            }
+            if (!is_int($dateTime[$field])) {
+                throw new InvalidArgumentException("Invalid type for field '$field'. Expected integer.");
+            }
+        }
+
+        // Validate the year, month, day, hour, and minute
+        if ($dateTime['year'] < 1970 || $dateTime['year'] > 2100) {
+            throw new InvalidArgumentException("Year must be between 1970 and 2100.");
+        }
+        if ($dateTime['month'] < 1 || $dateTime['month'] > 12) {
+            throw new InvalidArgumentException("Month must be between 1 and 12.");
+        }
+
+        // Check the day based on month and leap year status
+        if (!self::isValidDayForMonth($dateTime['year'], $dateTime['month'], $dateTime['date'])) {
+            throw new InvalidArgumentException("Invalid day for the specified month and year.");
+        }
+
+        if ($dateTime['hour'] < 0 || $dateTime['hour'] > 23) {
+            throw new InvalidArgumentException("Hour must be between 0 and 23.");
+        }
+        if ($dateTime['minute'] < 0 || $dateTime['minute'] > 59) {
+            throw new InvalidArgumentException("Minute must be between 0 and 59.");
+        }
+
+        // Format date string in "Y-m-d H:i:s" format
+        $dateString = sprintf(
+            '%04d-%02d-%02d %02d:%02d:00',
+            $dateTime['year'],
+            $dateTime['month'],
+            $dateTime['date'],
+            $dateTime['hour'],
+            $dateTime['minute']
+        );
+
+        // Try to create a DateTime object from the formatted string
+        try {
+            $dateTimeObject = DateTime::createFromFormat('Y-m-d H:i:s', $dateString, new DateTimeZone('UTC'));
+            if ($dateTimeObject === false) {
+                throw new Exception("Failed to create DateTime object from the date string.");
+            }
+        } catch (Exception $e) {
+            throw new RuntimeException("Error formatting date: " . $e->getMessage());
+        }
+
+        // Return the DateTime object in ISO 8601 format with timezone offset
+        return $dateTimeObject->format(DateTime::ATOM); // ISO 8601 format
     }
 
-    // Convert array values into a date string in "Y-m-d H:i:s" format
-    $dateString = sprintf(
-        '%04d-%02d-%02d %02d:00:00', 
-        $dateTime['year'], 
-        $dateTime['month'], 
-        $dateTime['date'], 
-        $dateTime['time']
-    );
+    // Helper function to check if a given day is valid for the month and year
+    private static function isValidDayForMonth(int $year, int $month, int $day): bool
+    {
+        // Days in each month
+        $daysInMonth = [1 => 31, 2 => 28, 3 => 31, 4 => 30, 5 => 31, 6 => 30, 7 => 31, 8 => 31, 9 => 30, 10 => 31, 11 => 30, 12 => 31];
 
-    // Create a DateTime object from the formatted string in UTC
-    $dateTimeObject = DateTime::createFromFormat('Y-m-d H:i:s', $dateString, new DateTimeZone('UTC'));
+        // Check for leap year and adjust February's days
+        if ($month === 2 && self::isLeapYear($year)) {
+            $daysInMonth[2] = 29;
+        }
 
-    // Return the date in ISO 8601 format with timezone offset
-    return $dateTimeObject;
+        // Validate day range
+        return $day >= 1 && $day <= $daysInMonth[$month];
+    }
+
+    // Helper function to determine if a year is a leap year
+    private static function isLeapYear(int $year): bool
+    {
+        return ($year % 4 === 0 && $year % 100 !== 0) || ($year % 400 === 0);
+    }
 }
 
-// Example usage:
-$dateArray = [
-    'year' => 2024,
-    'month' => 10,
-    'date' => 31,
-    'time' => 2
-];
-$triggerDate=formatTriggerDate($dateArray); // Output: "2024-10-31T02:00:00+00:00"
 
+try {
+    $dateArray = [
+        'year' => 2024,
+        'month' => 9,
+        'date' => 30, // Invalid day for February in a leap year
+        'hour' => 5,
+        'minute' => 35
+    ];
+
+    // Attempt to format the trigger date
+    $triggerDate = TriggerDateFormatter::formatTriggerDate($dateArray);
+    echo $triggerDate; // If successful, it outputs the formatted date
+
+} catch (Exception $e) {
+    // Display the error message and stop further execution
+    echo "Error: " . $e->getMessage();
+    exit; // Stop the program
+}
+
+
+
+// Helper array to add the specified unit of time
 $triggerIntervalUnit=[
 'minutes'=>'i',
 'hours'=>'h',
@@ -141,6 +239,20 @@ $listOfEvents=[
        "type"=> "email.send",
     ],
     [
+        "eventName"=>'Sending emails through API on date',
+        "triggerMode"=>'immediate',
+        "triggerDate"=> $triggerDate,
+        "triggerInterval"=> 1,
+        "triggerHour"=> null,
+        "triggerRestrictedDaysOfWeek"=>null,
+        "triggerIntervalUnit"=> $triggerIntervalUnit['days'],
+        "email"=> "golang",
+        "email_type"=> "marketing",
+        "priority"=> 2,
+        "attempts"=> 3,
+        "type"=> "email.send",
+    ],
+    [
         "eventName"=>'Sending emails through API relatively',
         "triggerMode"=>'immediate',
         "triggerDate"=> null,
@@ -150,7 +262,7 @@ $listOfEvents=[
             1,2,3,4,5
         ],
         "triggerIntervalUnit"=> $triggerIntervalUnit['months'],
-        "email"=> "Triggering",
+        "email"=> "golang",
         "email_type"=> "marketing",
         "priority"=> "2",
         "attempts"=> "3",
@@ -159,32 +271,31 @@ $listOfEvents=[
     ];
 
 
-// use this for adding two event
-$oldCampaignId=136;
+// use this for adding number of events you want to add
+$numOfEvents=3;
 
 //Segment name to add in this campaign
 //this name will become name of campign 
 $CampaignTypeName='testingsegment';
-
 //Add the category name which you want to associate other wise add null
 $categoryName = 'acc';
 $isPublished = true;
-addCampaign($isPublished,$oldCampaignId, $CampaignTypeName, $categoryName, $listOfEvents);
+addCampaign($isPublished,$numOfEvents, $CampaignTypeName, $categoryName, $listOfEvents);
 
 /**********************************************************************************
  *  First of all you have to provide a campaign template which you want to make
  *  To make a campaign you have to specify the campaignid from the ones given below
  * 
  *  Use this for adding one event : 
- *  $oldCampaignId=273;
- *  Use this for adding two event : 
- *  $oldCampaignId=136;
- *  Use this for adding three event :  
- *  $oldCampaignId=137;
+ *  numOfEvents = 1
+ *  Similarly change the number to add the number of events you want to add
  * 
  *  Then you have to specify the SegmentName which will become the name of Campaign
  *  You must enter the exact name of the Segment Example
+ *  Example of a list
  *  $CampaignTypeName='TestingSegment';
+ *  Exmaple of a Form
+ *  $CampaignTypeName='testingform';
  * 
  *  Add the category name which you want to associate other wise add null
  *  If you have a category:

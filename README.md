@@ -49,13 +49,11 @@ This function will assign the values to the events which will then b e sent usin
 Then this will add the uodated values to the main data.
 
 ### Helper Functions
-#### getEmailIdByName()
-This will access the database to fetch the information about the email by name which the user wants to send in each events.
-#### addEventToDatabase()
-This will add the events to the database by serializing the information about the events.
+#### getEmailData()
+This will access the API to fetch the information about the email by name which the user wants to send in each events.
 #### getCategoryData()
-This will access the database to fetch the information about the category by name which the user wants to add in each campaign.
-#### getFormByCampaignTypeId()
-This will access the database to fetch the information about the Contact Form by name which the user wants to add in Event.
-#### getListByCampaignTypeId() 
-This will access the database to fetch the information about the Lists/Segments by name which the user wants to add in Event.
+This will access the API to fetch the information about the category by name which the user wants to add in each campaign.
+#### getFormData()
+This will access the API to fetch the information about the Contact Form by name which the user wants to add in Event.
+#### getListData() 
+This will access the API to fetch the information about the Lists/Segments by name which the user wants to add in Event.

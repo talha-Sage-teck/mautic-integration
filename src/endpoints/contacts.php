@@ -18,6 +18,7 @@ $password = $_ENV['PASSWORD'];
 // Initialize Mautic API
 $mautic = new MauticAPI($apiUrl, $username, $password);
 
+
 echo "<h2>Mautic API Operations</h2><br>";
 
 // Function to add a contact

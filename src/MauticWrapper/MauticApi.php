@@ -35,6 +35,41 @@ class MauticAPI {
             return ['error' => $e->getMessage()];
         }
     }
+    public function getAllEmails()
+    {
+    try {
+        $limit = 100;
+        $segments = [];
+        $page = 1;
+        
+        do {
+            // Send GET request to retrieve segments with pagination
+            $response = $this->client->get('emails', [
+                'query' => [
+                    'limit' => $limit,
+                    'page' => $page,
+                ]
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+
+            // If the response contains 'segments', add them to the segments array
+            if (isset($data['emails']) && is_array($data['emails'])) {
+                $segments = array_merge($segments, $data['emails']);
+            }
+
+            // Check if there are more pages to fetch
+            $page++;
+
+        } while (isset($data['emails']) && count($data['emails']) === $limit);
+
+        // Return all segments
+        return $segments;
+    } catch (RequestException $e) {
+        // Handle exceptions
+        return ['error' => $e->getMessage()];
+    }
+}
 
     // Campaigns functions
     public function getCampaigns() {
@@ -45,6 +80,48 @@ class MauticAPI {
             return ['error' => $e->getMessage()];
         }
     }
+
+    public function getLatestCampaign() {
+        try {
+            $allCampaigns = [];
+            $page = 1;
+            $limit = 100; 
+
+            do {
+                $response = $this->client->get('campaigns', [
+                    'query' => [
+                        'page' => $page,
+                        'limit' => $limit
+                    ]
+                ]);
+    
+                $campaigns = json_decode($response->getBody(), true);
+    
+                if (isset($campaigns['campaigns']) && is_array($campaigns['campaigns'])) {
+                    $allCampaigns = array_merge($allCampaigns, $campaigns['campaigns']);
+                } else {
+                    break;
+                }
+    
+                $page++;
+            } while (count($campaigns['campaigns']) === $limit);
+    
+            if (empty($allCampaigns)) {
+                return ['error' => 'No campaigns found'];
+            }
+    
+            // Sort all campaigns by 'id' or 'created_date' in descending order
+            usort($allCampaigns, function($a, $b) {
+                return $b['id'] <=> $a['id']; 
+            });
+    
+            // Return the most recent campaign
+            return $allCampaigns[0];
+        } catch (\Exception $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+    
 
     public function getCampaign($id) {
         try {
@@ -131,6 +208,49 @@ class MauticAPI {
             return ['error' => $e->getMessage()];
         }
     }
+    public function getSegments() {
+        try {
+            $response = $this->client->get('segments');
+            return json_decode($response->getBody(), true);
+        } catch (\Exception $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+    public function getAllSegments()
+    {
+    try {
+        $limit = 100;
+        $segments = [];
+        $page = 1;
+        
+        do {
+            // Send GET request to retrieve segments with pagination
+            $response = $this->client->get('segments', [
+                'query' => [
+                    'limit' => $limit,
+                    'page' => $page,
+                ]
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+
+            // If the response contains 'segments', add them to the segments array
+            if (isset($data['lists']) && is_array($data['lists'])) {
+                $segments = array_merge($segments, $data['lists']);
+            }
+
+            // Check if there are more pages to fetch
+            $page++;
+
+        } while (isset($data['lists']) && count($data['lists']) === $limit);
+
+        // Return all segments
+        return $segments;
+    } catch (RequestException $e) {
+        // Handle exceptions
+        return ['error' => $e->getMessage()];
+    }
+}
 
     public function createSegment($data)
     {
@@ -225,6 +345,77 @@ class MauticAPI {
         }
         
     }
+    public function getAllForms()
+    {
+    try {
+        $limit = 100;
+        $segments = [];
+        $page = 1;
+        
+        do {
+            // Send GET request to retrieve segments with pagination
+            $response = $this->client->get('forms', [
+                'query' => [
+                    'limit' => $limit,
+                    'page' => $page,
+                ]
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+
+            // If the response contains 'segments', add them to the segments array
+            if (isset($data['forms']) && is_array($data['forms'])) {
+                $segments = array_merge($segments, $data['forms']);
+            }
+
+            // Check if there are more pages to fetch
+            $page++;
+
+        } while (isset($data['forms']) && count($data['forms']) === $limit);
+
+        // Return all segments
+        return $segments;
+    } catch (RequestException $e) {
+        // Handle exceptions
+        return ['error' => $e->getMessage()];
+    }
+}
+
+public function getAllCategories()
+{
+try {
+    $limit = 100;
+    $segments = [];
+    $page = 1;
+    
+    do {
+        // Send GET request to retrieve segments with pagination
+        $response = $this->client->get('categories', [
+            'query' => [
+                'limit' => $limit,
+                'page' => $page,
+            ]
+        ]);
+
+        $data = json_decode($response->getBody(), true);
+
+        // If the response contains 'segments', add them to the segments array
+        if (isset($data['categories']) && is_array($data['categories'])) {
+            $segments = array_merge($segments, $data['categories']);
+        }
+
+        // Check if there are more pages to fetch
+        $page++;
+
+    } while (isset($data['categories']) && count($data['categories']) === $limit);
+
+    // Return all segments
+    return $segments;
+} catch (RequestException $e) {
+    // Handle exceptions
+    return ['error' => $e->getMessage()];
+}
+}
 
 
 }

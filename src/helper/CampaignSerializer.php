@@ -164,7 +164,7 @@ class MainData {
 
 
 //Fetching the information about the Segments/Lists from DB to add in the events
-function getListData($CampaignTypeName,$mautic)
+function getListData($CampaignTypeName, $mautic)
 {
     // Get all segments from Mautic
     $response = $mautic->getAllSegments();
@@ -190,9 +190,10 @@ function getListData($CampaignTypeName,$mautic)
         }
     }
 
-    // Return null if no matching segment is found
-    return null;  // Or you can return an error message, if preferred
+    // Throw an exception if no matching segment is found
+    throw new Exception("Segment with name '{$CampaignTypeName}' not found.");
 }
+
 
 function getFormData($CampaignTypeName,$mautic)
 {
@@ -219,7 +220,7 @@ function getFormData($CampaignTypeName,$mautic)
     }
 
     // Return null if no matching segment is found
-    return null;  // Or you can return an error message, if preferred
+    throw new Exception("Segment with name '{$CampaignTypeName}' not found.");
 }
 
 
@@ -234,7 +235,7 @@ function getEmailData($emailName,$mautic){
     }
 
 // Return null if no matching segment is found
-return null;  // Or you can return an error message, if preferred
+throw new Exception("Segment with name '{$emailName}' not found.");
 }
 
 function getCategoryData($categoryName, $mautic) {
@@ -327,7 +328,6 @@ foreach ($listOfEvents as $eventData) {
     $eventData['email']=$emailData;
     // Adding an event toi main data
     $event = addEventToMainData($data, $eventId, $eventData);
-    // this is adding the above created events to the database
 }
 
 

@@ -241,12 +241,10 @@ throw new Exception("Segment with name '{$emailName}' not found.");
 function getCategoryData($categoryName, $mautic) {
     // Get all segments from Mautic
     $response = $mautic->getAllCategories();
-    print_r($response);
     // Check if the response contains segments
     if (isset($response) && is_array($response)) {
         // Iterate through the segments to find the one matching the CampaignTypeName
         foreach ($response as $row) {
-            print_r($row);
             if (isset($row['title']) && $row['title'] === $categoryName) {
                 $category = new Category();
                 $category->id = $row['id'];

@@ -1,4 +1,11 @@
 <?php
+
+/***************************************************************************
+ * Check the END OF FILE to get idea of how this function (addCampaign) works
+ ****************************************************************************/
+
+
+
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -11,102 +18,163 @@ $dotenv->load();
 
 use MauticWrapper\MauticAPI;
 
-/********************************************************
- * Check the end of file to get idea of how this function (addCampaign) works
- * 
- * 
- * 
- *********************************************************/
+class Node
+{
+    public string $id;
+    public int $positionX;
+    public int $positionY;
 
-function getEventId($mautic){
+    public function __construct(string $id, int $positionX, int $positionY)
+    {
+        $this->id = $id;
+        $this->positionX = $positionX;
+        $this->positionY = $positionY;
+    }
+}
+
+class Anchors
+{
+    public string $source;
+    public string $target;
+
+    public function __construct(string $source, string $target)
+    {
+        $this->source = $source;
+        $this->target = $target;
+    }
+}
+
+class Connection
+{
+    public string $sourceId;
+    public string $targetId;
+    public Anchors $anchors;
+
+    public function __construct(string $sourceId, string $targetId, Anchors $anchors)
+    {
+        $this->sourceId = $sourceId;
+        $this->targetId = $targetId;
+        $this->anchors = $anchors;
+    }
+}
+
+class CanvasSetting
+{
+    public array $nodes = [];
+    public array $connections = [];
+
+    public function __construct(array $nodes, array $connections)
+    {
+        $this->nodes = $nodes;
+        $this->connections = $connections;
+    }
+
+    public function toJson(): string
+    {
+        return json_encode($this, JSON_PRETTY_PRINT);
+    }
+}
+
+//Setting the anchor values for each nodes inside canvas settings
+function getAnchor($source = 'leadsource', $target = 'top')
+{
+    return new Anchors($source, $target);
+}
+function getNodes($id, $positionX, $positionY)
+{
+    return new Node($id, $positionX, $positionY);
+}
+
+function getConnection($sourceId, $targetId, $Anchor)
+{
+    return new Connection($sourceId, $targetId, $Anchor);
+}
+
+function populateCanvasSetting($event, $CampaignType)
+{
+    $nodes = [];
+    $connection = [];
+    $positionX = 1;
+    $positionY = 350;
+    foreach ($event['events'] as $index => $singleEvent) {
+        // Update the nodes array with the event ID
+        $nodes[] = getNodes($singleEvent['id'], $positionX, $positionY);
+        $positionX += 600;
+        $connection[] = getConnection($CampaignType, $singleEvent['id'], getAnchor());
+    }
+    $nodes[] = getNodes(id: $CampaignType, positionX: 753, positionY: 50);
+
+
+    return new CanvasSetting($nodes, $connection);
+}
+
+
+function getEventId($mautic)
+{
     $response = $mautic->getLatestCampaign();
-    print_r($response );
-
-
     // Check if 'events' exists in the response and is an array
     if (isset($response['events']) && is_array($response['events']) && count($response['events']) > 0) {
         // Get the ID of the last event
         $lastEventId = $response['events'][count($response['events']) - 1]['id'];
-    
-        echo '<br><b>Last Event ID: ' . $lastEventId . '</b><br>';
     } else {
         throw new Exception("No events found in the campaign response.");
     }
-    return $lastEventId ;
+    return $lastEventId;
 }
 
-function addCampaign($isPublished ,$numOfEvents,$CampaignTypeName, $categoryName, $listOfEvents){
+/************************************************************************
+ * This Is the main function the crust of all.
+ * Responsible for calling all the API calls and Helper functions
+ * It should be called with all the required parameters to make it work correctly.
+ * Otherwise it may give exception
+ **************************************************************************/
+
+
+function addCampaign($isPublished, $campaignType, $campaignTypeName, $categoryName, $listOfEvents)
+{
 
     $apiUrl = $_ENV['API_URL'];
     $username = $_ENV['USERNAME'];
     $password = $_ENV['PASSWORD'];
 
-    $apiData=[
-        'apiUrl'=>$apiUrl,
-        'username'=>$username,
-        'password'=> $password
+    $apiData = [
+        'apiUrl' => $apiUrl,
+        'username' => $username,
+        'password' => $password
     ];
-  
+
     // Initialize Mautic API
     $mautic = new MauticAPI($apiUrl, $username, $password);
-    $EventId=getEventId($mautic);
-   
-    switch($numOfEvents){
-        case 1:
-            $oldCampaignId=273;
-            break;
-        case 2:
-            $oldCampaignId=136;
-            break;
-        case 3:
-            $oldCampaignId=137;
-            break;
-        default:
-        throw new Exception("No template found in the campaign response.");
-    }
-    // Change this into clone a campaign id
-    $responseData = $mautic->cloneCampaign($oldCampaignId);
+    $EventId = getEventId($mautic);
 
-    $campaignId=$responseData ['campaign']['id'];
-    $CampaignType=$responseData['campaign']['canvasSettings']['connections'][0]['sourceId'];
-   
-    $event=addEvent($apiData,$EventId, $CampaignTypeName, $CampaignType, $categoryName, $listOfEvents);
-    echo $CampaignType;
 
-    $responseData['campaign']['isPublished']=$isPublished;
-    $responseData['campaign']['name']=$CampaignTypeName;
-    $responseData['campaign']['category']=$event['category'][0];
-    $responseData['campaign']['events']=$event['events'];
-    $responseData['campaign']['lists']=$event['lists'];
-    $responseData['campaign']['forms']=$event['forms'];
+    $event = addEvent($apiData, $EventId, $campaignTypeName, $campaignType, $categoryName, $listOfEvents);
 
-    // Assuming $event['events'] is an array of events
-    foreach ($event['events'] as $index => $singleEvent) {
-        // Update the nodes array with the event ID
-        $responseData['campaign']['canvasSettings']['nodes'][$index]['id'] = $singleEvent['id'];
-
-        // Update the connections array with the event ID (make sure connections array is large enough)
-        if (isset($responseData['campaign']['canvasSettings']['connections'][$index])) {
-            $responseData['campaign']['canvasSettings']['connections'][$index]['targetId'] = $singleEvent['id'];
-        }
-    }
+    $responseData['campaign']['isPublished'] = $isPublished;
+    $responseData['campaign']['name'] = $campaignTypeName;
+    $responseData['campaign']['category'] = $event['category'][0];
+    $responseData['campaign']['events'] = $event['events'];
+    $responseData['campaign']['lists'] = $event['lists'];
+    $responseData['campaign']['forms'] = $event['forms'];
+    $responseData['campaign']['canvasSettings'] = populateCanvasSetting($event, $campaignType);
 
 
 
-    $finalCampaignData = ['name'=>$responseData['campaign']['name'], 'isPublished'=> $responseData['campaign']['isPublished'],'category'=>$responseData['campaign']['category'],'events'=> $responseData['campaign']['events'],'forms'=>$responseData['campaign']['forms'],'lists'=> $responseData['campaign']['lists'], 'canvasSettings'=>$responseData['campaign']['canvasSettings']];
+    $finalCampaignData = ['name' => $responseData['campaign']['name'], 'events' => $responseData['campaign']['events'], 'forms' => $responseData['campaign']['forms'], 'lists' => $responseData['campaign']['lists'], 'canvasSettings' => $responseData['campaign']['canvasSettings']];
 
+    $response = $mautic->createCampaign($finalCampaignData);
+
+    $newId = $mautic->getLatestCampaign();
+
+    $finalCampaignData = ['name' => $responseData['campaign']['name'], 'isPublished' => $responseData['campaign']['isPublished'], 'category' => $responseData['campaign']['category'], 'events' => $responseData['campaign']['events'], 'lists' => $responseData['campaign']['lists'], 'forms' => $responseData['campaign']['forms']];
+
+    $response = $mautic->updateCampaign($newId['id'], $finalCampaignData);
     echo '<pre>';
-    print_r (json_encode($finalCampaignData));
-    echo '</pre>';
-
-    //$response=$mautic->createCampaign($finalCampaignData);
-    $response=$mautic->updateCampaign($campaignId, $finalCampaignData);
     print_r($response);
-
+    echo '</pre>';
     echo '<br><br>';
     echo "<p style='color:green;'>Campaign has been successfully added</p>";
     echo '<br><br>';
-
 }
 
 
@@ -192,6 +260,10 @@ class TriggerDateFormatter
     }
 }
 
+/*************************************************************************************
+ * TESTING PHASE starts from here you can remove this part
+ **************************************************************************************/
+
 
 try {
     $dateArray = [
@@ -204,8 +276,6 @@ try {
 
     // Attempt to format the trigger date
     $triggerDate = TriggerDateFormatter::formatTriggerDate($dateArray);
-    echo $triggerDate; // If successful, it outputs the formatted date
-
 } catch (Exception $e) {
     // Display the error message and stop further execution
     echo "Error: " . $e->getMessage();
@@ -215,87 +285,60 @@ try {
 
 
 // Helper array to add the specified unit of time
-$triggerIntervalUnit=[
-'minutes'=>'i',
-'hours'=>'h',
-'days'=>'d',
-'months'=>'m',
-'years'=>'y',
+$triggerIntervalUnit = [
+    'minutes' => 'i',
+    'hours' => 'h',
+    'days' => 'd',
+    'months' => 'm',
+    'years' => 'y',
 ];
 
-$listOfEvents=[
+$listOfEvents = [
     [
-       "eventName"=>'Sending emails through API',
-       "triggerMode"=>'immediate',
-       "triggerDate"=> null,
-       "triggerInterval"=> 1,
-       "triggerHour"=> null,
-       "triggerRestrictedDaysOfWeek"=>null,
-       "triggerIntervalUnit"=> $triggerIntervalUnit['days'],
-       "email"=> "Triggering",
-       "email_type"=> "marketing",
-       "priority"=> "2",
-       "attempts"=> "3",
-       "type"=> "email.send",
+        "eventName" => 'Sending emails through API',
+        "triggerMode" => 'immediate',
+        "triggerDate" => null,
+        "triggerInterval" => 1,
+        "triggerHour" => null,
+        "triggerRestrictedDaysOfWeek" => null,
+        "triggerIntervalUnit" => $triggerIntervalUnit['days'],
+        "email" => "Triggering",
+        "email_type" => "marketing",
+        "priority" => "2",
+        "attempts" => "3",
+        "type" => "email.send",
     ],
-    [
-        "eventName"=>'Sending emails through API on date',
-        "triggerMode"=>'immediate',
-        "triggerDate"=> $triggerDate,
-        "triggerInterval"=> 1,
-        "triggerHour"=> null,
-        "triggerRestrictedDaysOfWeek"=>null,
-        "triggerIntervalUnit"=> $triggerIntervalUnit['days'],
-        "email"=> "golang",
-        "email_type"=> "marketing",
-        "priority"=> 2,
-        "attempts"=> 3,
-        "type"=> "email.send",
-    ],
-    [
-        "eventName"=>'Sending emails through API relatively',
-        "triggerMode"=>'immediate',
-        "triggerDate"=> null,
-        "triggerInterval"=> "9",
-        "triggerHour"=> '02:00',
-        "triggerRestrictedDaysOfWeek"=>[
-            1,2,3,4,5
-        ],
-        "triggerIntervalUnit"=> $triggerIntervalUnit['months'],
-        "email"=> "golang",
-        "email_type"=> "marketing",
-        "priority"=> "2",
-        "attempts"=> "3",
-        "type"=> "email.send",
-    ]
-    ];
+
+];
 
 
-// use this for adding number of events you want to add
-$numOfEvents=3;
-
+// use this for adding Form or Segement
+$campaignType = 'lists';
 //Segment name to add in this campaign
 //this name will become name of campign 
-$CampaignTypeName='testingsegment';
+$campaignTypeName = 'testingsegment';
 //Add the category name which you want to associate other wise add null
 $categoryName = 'acc';
+//This flag is use to publish the campaign
 $isPublished = true;
-addCampaign($isPublished,$numOfEvents, $CampaignTypeName, $categoryName, $listOfEvents);
+
+// Send all the above parameters to the function
+addCampaign($isPublished, $campaignType, $campaignTypeName, $categoryName, $listOfEvents);
 
 /**********************************************************************************
- *  First of all you have to provide a campaign template which you want to make
- *  To make a campaign you have to specify the campaignid from the ones given below
- * 
- *  Use this for adding one event : 
- *  numOfEvents = 1
- *  Similarly change the number to add the number of events you want to add
- * 
- *  Then you have to specify the SegmentName which will become the name of Campaign
- *  You must enter the exact name of the Segment Example
- *  Example of a list
- *  $CampaignTypeName='TestingSegment';
- *  Exmaple of a Form
- *  $CampaignTypeName='testingform';
+     *  First of all you have to provide a campaign template which you want to make
+     *  To make a campaign you have to specify the campaignid from the ones given below
+     * 
+     *  Use this for adding one event : 
+     *  numOfEvents = 1
+     *  Similarly change the number to add the number of events you want to add
+     * 
+     *  Then you have to specify the SegmentName which will become the name of Campaign
+     *  You must enter the exact name of the Segment Example
+     *  Example of a list
+     *  $CampaignTypeName='TestingSegment';
+     *  Exmaple of a Form
+     *  $CampaignTypeName='testingform';
  * 
  *  Add the category name which you want to associate other wise add null
  *  If you have a category:
@@ -411,19 +454,3 @@ But can be change if you want just specify the value
 
 ********************************************************************************************
 */
-
-
-
-
-
-
-
-
-
-
-
-
-
-?>
-
-

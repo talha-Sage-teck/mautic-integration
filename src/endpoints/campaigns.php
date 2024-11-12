@@ -117,7 +117,8 @@ function getEventId($mautic)
         // Get the ID of the last event
         $lastEventId = $response['events'][count($response['events']) - 1]['id'];
     } else {
-        throw new Exception("No events found in the campaign response.");
+        $lastEventId=0;
+        return $lastEventId;
     }
     return $lastEventId;
 }

@@ -8,7 +8,7 @@ All the information about how to add the data is provided there<br>
 
 ## Working Flow
 It will first need some inputs to function correctly, provide them in the above mentioned file or Pass in as parameter from somewhere else by calling the function.<br>
-This will then clone the type of campaign you want to add such as 
+This will then create the type of campaign you want to add such as 
 <ul>
   <li>One event</li>
   <li>Two events</li>
